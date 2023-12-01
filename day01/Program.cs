@@ -27,8 +27,8 @@ namespace day01
 
             foreach (string line in lines)
             {
-                var m1 = Regex.Match(line, @"(?<=^\D*)\d");
-                var m2 = Regex.Match(line, @"\d(?=\D*$)");
+                var m1 = Regex.Match(line, @"\d");
+                var m2 = Regex.Match(line, @"\d", RegexOptions.RightToLeft);
                 p1score += int.Parse($"{m1.Value}{m2.Value}");
 
                 var m3 = Regex.Match(line, p2pattern);
