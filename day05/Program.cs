@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 
 namespace day05
 {
@@ -11,142 +12,108 @@ namespace day05
         public static void Main(string[] args)
         {
             var lines = File.ReadAllLines(Path.GetFullPath(args[0]));
-            var seeds = lines[0].Split(": ")[1].Split(" ").Select(long.Parse).ToArray();
+            var seeds = lines[0].Split(" ").Skip(1).Select(long.Parse).ToList();
+            var maps = new List<List<(long source, long dest, long offset)>>();
 
-            var inputMap = new Dictionary<string, int>() {
-                {"Seed", 0},
-                {"Soil", 0},
-                {"Fertilizer", 0},
-                {"Water", 0},
-                {"Light", 0},
-                {"Temp", 0},
-                {"Humidity", 0}
-            };
-
-            for (int i = 1; i < lines.Length; i++)
+            var currentMap = new List<(long source, long dest, long offset)>();
+            foreach (var line in lines.Skip(2))
             {
-                switch (lines[i])
+                if (line.EndsWith(":"))
                 {
-                    case "seed-to-soil map:":
-                        inputMap["Seed"] = i;
-                        break;
-                    case "soil-to-fertilizer map:":
-                        inputMap["Soil"] = i;
-                        break;
-                    case "fertilizer-to-water map:":
-                        inputMap["Fertilizer"] = i;
-                        break;
-                    case "water-to-light map:":
-                        inputMap["Water"] = i;
-                        break;
-                    case "light-to-temperature map:":
-                        inputMap["Light"] = i;
-                        break;
-                    case "temperature-to-humidity map:":
-                        inputMap["Temp"] = i;
-                        break;
-                    case "humidity-to-location map:":
-                        inputMap["Humidity"] = i;
-                        break;
+                    currentMap = new List<(long source, long dest, long offset)>();
+                    continue;
                 }
+
+                if (string.IsNullOrWhiteSpace(line) && currentMap.Count > 0)
+                {
+                    maps.Add(currentMap);
+                    currentMap = new List<(long source, long dest, long offset)>();
+                    continue;
+                }
+
+                var elements = line.Split(" ").Select(long.Parse).ToArray();
+                currentMap.Add((elements[1], elements[1] + elements[2] - 1, elements[0] - elements[1]));
             }
 
-            var minLoc = long.MaxValue;
+            if (currentMap.Count > 0)
+            {
+                maps.Add(currentMap);
+            }
+
+            var part1 = long.MaxValue;
 
             foreach (var seed in seeds)
             {
-                long currLoc = seed;
-                currLoc = GetNextDestination(currLoc, inputMap["Seed"] + 1, inputMap["Soil"] - 1, lines);
-                currLoc = GetNextDestination(currLoc, inputMap["Soil"] + 1, inputMap["Fertilizer"] - 1, lines);
-                currLoc = GetNextDestination(currLoc, inputMap["Fertilizer"] + 1, inputMap["Water"] - 1, lines);
-                currLoc = GetNextDestination(currLoc, inputMap["Water"] + 1, inputMap["Light"] - 1, lines);
-                currLoc = GetNextDestination(currLoc, inputMap["Light"] + 1, inputMap["Temp"] - 1, lines);
-                currLoc = GetNextDestination(currLoc, inputMap["Temp"] + 1, inputMap["Humidity"] - 1, lines);
-                currLoc = GetNextDestination(currLoc, inputMap["Humidity"] + 1, lines.Length - 1, lines);
-            
-                minLoc = Math.Min(minLoc, currLoc);
-            }
-
-            Console.WriteLine($"P1: {minLoc}");
-
-            var ranges = new List<(long, long)>();
-            long minRangeLoc = long.MaxValue;
-
-            for (int i = 0; i < seeds.Length; i += 2)
-            {
-                ranges.Add((seeds[i], seeds[i + 1] - 1));
-            }
-
-            var consolidatedRanges = RangeConsolidator.ConsolidateRanges(ranges);
-
-            foreach (var r in consolidatedRanges)
-            {
-                for (long i = r.Start; i <= r.Start + r.End; i++)
+                var t = seed;
+                foreach (var map in maps)
                 {
-                    long currLoc = i;
-                    currLoc = GetNextDestination(currLoc, inputMap["Seed"] + 1, inputMap["Soil"] - 1, lines);
-                    currLoc = GetNextDestination(currLoc, inputMap["Soil"] + 1, inputMap["Fertilizer"] - 1, lines);
-                    currLoc = GetNextDestination(currLoc, inputMap["Fertilizer"] + 1, inputMap["Water"] - 1, lines);
-                    currLoc = GetNextDestination(currLoc, inputMap["Water"] + 1, inputMap["Light"] - 1, lines);
-                    currLoc = GetNextDestination(currLoc, inputMap["Light"] + 1, inputMap["Temp"] - 1, lines);
-                    currLoc = GetNextDestination(currLoc, inputMap["Temp"] + 1, inputMap["Humidity"] - 1, lines);
-                    currLoc = GetNextDestination(currLoc, inputMap["Humidity"] + 1, lines.Length - 1, lines);
-
-                    minRangeLoc = Math.Min(minRangeLoc, currLoc);
+                    foreach (var m in map)
+                    {
+                        if (t >= m.source && t <= m.dest)
+                        {
+                            t += m.offset;
+                            break;
+                        }
+                    }
                 }
+
+                part1 = Math.Min(part1, t);
             }
 
-            Console.WriteLine($"P2: {minRangeLoc}");
-        }
+            Console.WriteLine($"P1: {part1}");
 
-        public static long GetNextDestination(long id, int start, int end, string[] lines)
-        {
-            for (int lNum = start; lNum < end; lNum++)
+            var seedRanges = new List<(long start, long end)>();
+
+            for (int i = 0; i < seeds.Count; i += 2)
             {
-                var s = lines[lNum].Split(" ", 3).Select(long.Parse).ToArray();
-
-                if (id >= s[1] && id < s[1] + s[2])
-                {
-                    return s[0] + (id - s[1]);
-                }
+                seedRanges.Add((seeds[i], seeds[i] + seeds[i + 1] - 1));
             }
 
-            return id;
-        }
-    }
-
-    public class RangeConsolidator
-    {
-        public static List<(long Start, long End)> ConsolidateRanges(List<(long Start, long End)> ranges)
-        {
-            var sortedRanges = ranges.OrderBy(r => r.Start).ToList();
-            var consolidatedRanges = new List<(long Start, long End)>();
-
-            (long Start, long End)? currentRange = null;
-
-            foreach (var range in sortedRanges)
+            foreach (var map in maps)
             {
-                if (currentRange == null)
+                var oMap = map.OrderBy(q => q.source).ToList();
+                var newSeedRanges = new List<(long start, long end)>();
+
+                foreach (var r in seedRanges)
                 {
-                    currentRange = range;
+                    var ra = r;
+
+                    foreach (var om in oMap)
+                    {
+                        if (ra.start < om.source)
+                        {
+                            newSeedRanges.Add((ra.start, Math.Min(ra.end, om.source - 1)));
+                            ra.start = om.source;
+
+                            if (ra.start > ra.end)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (ra.start <= om.dest)
+                        {
+                            newSeedRanges.Add((ra.start + om.offset, Math.Min(ra.end, om.dest) + om.offset));
+                            ra.start = om.dest + 1;
+
+                            if (ra.start > ra.end)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (ra.start <= ra.end)
+                    {
+                        newSeedRanges.Add(ra);
+                    }
                 }
-                else if (currentRange.Value.End >= range.Start)
-                {
-                    currentRange = (currentRange.Value.Start, Math.Max(currentRange.Value.End, range.End));
-                }
-                else
-                {
-                    consolidatedRanges.Add(currentRange.Value);
-                    currentRange = range;
-                }
+
+                seedRanges = newSeedRanges;
             }
 
-            if (currentRange != null)
-            {
-                consolidatedRanges.Add(currentRange.Value);
-            }
-
-            return consolidatedRanges;
+            var part2 = seedRanges.Min(q => q.start);
+            Console.WriteLine($"P2: {part2}");
         }
     }
 }
